@@ -9,8 +9,13 @@ using System;
 using System.IO;
 using TestTask.Sql;
 using AutoMapper;
-using TestTask.Core;
 using Autofac;
+using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.IdentityModel.Tokens;
+using System.Text;
+using TestTask.Abstractions;
+using TestTask.Core;
+using Microsoft.AspNetCore.Authentication;
 
 namespace TestTask.Api
 {
@@ -51,11 +56,38 @@ namespace TestTask.Api
                     Version = $"v{assemblyVersion}",
                     Title = "Test task API",
                 });
+                c.AddSecurityDefinition("basic", new OpenApiSecurityScheme
+                {
+                    Name = "Authorization",
+                    Type = SecuritySchemeType.Http,
+                    Scheme = "basic",
+                    In = ParameterLocation.Header,
+                    Description = "Basic Authorization header using the Bearer scheme."
+                });
+                c.AddSecurityRequirement(new OpenApiSecurityRequirement
+                {
+                    {
+                          new OpenApiSecurityScheme
+                            {
+                                Reference = new OpenApiReference
+                                {
+                                    Type = ReferenceType.SecurityScheme,
+                                    Id = "basic"
+                                }
+                            },
+                            new string[] {}
+                    }
+                });
 
                 // add contract docs
                 var xmlContractDocs = Directory.GetFiles(Path.Combine(AppContext.BaseDirectory), "*.Contract.xml");
                 foreach (var fileName in xmlContractDocs) c.IncludeXmlComments(fileName);
             });
+
+            services.AddAuthentication("BasicAuthentication")
+                .AddScheme<AuthenticationSchemeOptions, BasicAuthenticationHandler>("BasicAuthentication", null);
+
+            services.AddScoped<IUserService, UserService>();
         }
 
         public void ConfigureContainer(ContainerBuilder builder)
@@ -83,6 +115,7 @@ namespace TestTask.Api
                 c.DocExpansion(DocExpansion.None);
             });
 
+            app.UseAuthentication();
             app.UseAuthorization();
 
             app.UseEndpoints(endpoints => { endpoints.MapControllers(); });
